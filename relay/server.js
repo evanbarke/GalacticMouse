@@ -60,7 +60,7 @@ wss.on('connection', ws => {
     for (const peer of rooms.get(roomId) ?? []) {
       if (peer !== ws && peer.readyState === 1) {
         if (peer.bufferedAmount >= 65536) peer.close(1013, 'Backpressure');
-        else peer.send(bytes);
+        else peer.send(bytes.toString('utf8'));
       }
     }
   });
