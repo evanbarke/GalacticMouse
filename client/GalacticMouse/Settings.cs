@@ -8,6 +8,7 @@ internal sealed class Settings
     public string RelayUrl { get; set; } = "wss://galactamouse.samix-technology.com/ws";
     public string PairingCode { get; set; } = "";
     public bool NeighborRight { get; set; } = true;
+    public double PointerSpeed { get; set; } = 1.5;
 
     private static readonly string PathName = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

@@ -12,6 +12,8 @@ This is an early working prototype. It has no clipboard or screen streaming. It 
 4. The prefilled relay URL is `wss://galactamouse.samix-technology.com/ws`. Set **Other PC is** to **Right** on the left PC and **Left** on the right PC.
 5. Click **Connect** on both. Wait for **Peer connected**. Move off the configured edge to switch; move back across the remote edge to return. `Ctrl+Alt+Shift+F12` releases local control in an emergency.
 
+Adjust **Pointer speed** on the PC whose mouse you are using to change how far the remote cursor moves. The default is 1.5×; changes take effect immediately and are saved for that PC.
+
 Only the primary display of each PC is mapped in this version. Close the agent or click Disconnect to restore local input. Keyboard and mouse events are encrypted end to end with AES-256-GCM using the pairing code. The relay sees a room identifier and message timing but cannot decrypt input. Pairing codes are saved under `%LOCALAPPDATA%\GalacticMouse` in the user's profile; protect the profile as you would other credentials.
 
 If the connection drops, the app now shows the relay's close reason and writes connection status to `%LOCALAPPDATA%\GalacticMouse\client.log`. The log does not include the pairing code or input events.

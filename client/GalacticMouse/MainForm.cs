@@ -7,6 +7,7 @@ internal sealed class MainForm : Form
     private readonly TextBox _url = new() { Dock = DockStyle.Fill };
     private readonly TextBox _code = new() { Dock = DockStyle.Fill };
     private readonly ComboBox _side = new() { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly NumericUpDown _pointerSpeed = new() { Width = 80, Minimum = 0.5M, Maximum = 4, DecimalPlaces = 2, Increment = 0.25M };
     private readonly Button _connect = new() { Text = "Connect", Width = 110 };
     private readonly Label _status = new() { Dock = DockStyle.Fill, Text = "Disconnected" };
     private readonly System.Windows.Forms.Timer _edgeTimer = new() { Interval = 10 };
@@ -15,6 +16,7 @@ internal sealed class MainForm : Form
     private RelayClient? _relay;
     private bool _remoteMode, _controlled;
     private int _remoteWidth, _remoteHeight, _remoteX, _remoteY;
+    private double _remoteExactX, _remoteExactY;
     private bool _movePending;
     private DateTime _nextMoveSend;
     private DateTime _edgeGuard;
@@ -24,7 +26,7 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         Text = "GalacticMouse";
-        Width = 500; Height = 295;
+        Width = 500; Height = 335;
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -32,29 +34,37 @@ internal sealed class MainForm : Form
         _code.Text = _settings.PairingCode;
         _side.Items.AddRange(["Right", "Left"]);
         _side.SelectedIndex = _settings.NeighborRight ? 0 : 1;
+        _pointerSpeed.Value = (decimal)Math.Clamp(_settings.PointerSpeed, 0.5, 4);
+        _pointerSpeed.ValueChanged += (_, _) =>
+        {
+            _settings.PointerSpeed = (double)_pointerSpeed.Value;
+            _settings.Save();
+        };
 
         var layout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, Padding = new Padding(15), ColumnCount = 2, RowCount = 5,
+            Dock = DockStyle.Fill, Padding = new Padding(15), ColumnCount = 2, RowCount = 6,
             AutoSize = false
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (var i = 0; i < 5; i++) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, i == 4 ? 55 : 40));
+        for (var i = 0; i < 6; i++) layout.RowStyles.Add(new RowStyle(SizeType.Absolute, i == 5 ? 55 : 40));
         layout.Controls.Add(new Label { Text = "Relay URL", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
         layout.Controls.Add(_url, 1, 0);
         layout.Controls.Add(new Label { Text = "Pairing code", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
         layout.Controls.Add(_code, 1, 1);
         layout.Controls.Add(new Label { Text = "Other PC is", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
         layout.Controls.Add(_side, 1, 2);
+        layout.Controls.Add(new Label { Text = "Pointer speed", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 3);
+        layout.Controls.Add(_pointerSpeed, 1, 3);
         var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
         var generate = new Button { Text = "Generate pairing code", AutoSize = true };
         generate.Click += (_, _) => { _code.Text = Settings.NewCode(); Clipboard.SetText(_code.Text); _status.Text = "New code copied to clipboard. Paste it on the other PC."; };
         buttons.Controls.Add(generate);
         buttons.Controls.Add(_connect);
         _connect.Click += (_, _) => { if (_relay is null) Connect(); else Disconnect(); };
-        layout.Controls.Add(buttons, 1, 3);
-        layout.Controls.Add(_status, 1, 4);
+        layout.Controls.Add(buttons, 1, 4);
+        layout.Controls.Add(_status, 1, 5);
         Controls.Add(layout);
         _edgeTimer.Tick += (_, _) => CheckEdge();
         FormClosing += (_, _) => Disconnect();
@@ -72,6 +82,7 @@ internal sealed class MainForm : Form
             _settings.RelayUrl = uri.ToString();
             _settings.PairingCode = _code.Text.Trim();
             _settings.NeighborRight = _side.SelectedIndex == 0;
+            _settings.PointerSpeed = (double)_pointerSpeed.Value;
             _settings.Save();
             _input = new NativeInput(Handle);
             _input.MouseEvent = OnMouseEvent;
@@ -196,6 +207,9 @@ internal sealed class MainForm : Form
         _remoteMode = true;
         _remoteX = _settings.NeighborRight ? 2 : _remoteWidth - 3;
         _remoteY = Math.Clamp((int)((long)(point.Y - bounds.Top) * _remoteHeight / bounds.Height), 0, _remoteHeight - 1);
+        _remoteExactX = _remoteX;
+        _remoteExactY = _remoteY;
+        _nextMoveSend = DateTime.MinValue;
         _relay.Send(new { type = "enter", x = _remoteX, y = _remoteY });
         _status.Text = "Controlling other PC — move back or press Ctrl+Alt+Shift+F12";
     }
@@ -203,22 +217,29 @@ internal sealed class MainForm : Form
     private void OnRawMouseMove(int dx, int dy)
     {
         if (!_remoteMode || (dx == 0 && dy == 0)) return;
-        var next = _remoteX + dx;
+        var speed = (double)_pointerSpeed.Value;
+        var next = _remoteExactX + dx * speed;
         if ((_settings.NeighborRight && next <= 0) || (!_settings.NeighborRight && next >= _remoteWidth - 1))
         {
             StopRemote();
             return;
         }
-        _remoteX = Math.Clamp(next, 1, _remoteWidth - 2);
-        _remoteY = Math.Clamp(_remoteY + dy, 0, _remoteHeight - 1);
+        _remoteExactX = Math.Clamp(next, 1, _remoteWidth - 2);
+        _remoteExactY = Math.Clamp(_remoteExactY + dy * speed, 0, _remoteHeight - 1);
+        var x = (int)Math.Round(_remoteExactX);
+        var y = (int)Math.Round(_remoteExactY);
+        if (x == _remoteX && y == _remoteY) return;
+        _remoteX = x;
+        _remoteY = y;
         _movePending = true;
+        if (DateTime.UtcNow >= _nextMoveSend) FlushMove();
     }
 
     private void FlushMove()
     {
         if (!_movePending || !_remoteMode) return;
         _movePending = false;
-        _nextMoveSend = DateTime.UtcNow.AddMilliseconds(12);
+        _nextMoveSend = DateTime.UtcNow.AddMilliseconds(8);
         _relay?.Send(new { type = "move", x = _remoteX, y = _remoteY });
     }
 
