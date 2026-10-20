@@ -4,8 +4,8 @@ namespace GalacticMouse;
 
 internal sealed class MainForm : Form
 {
-    private readonly TextBox _url = new() { Width = 430 };
-    private readonly TextBox _code = new() { Width = 430 };
+    private readonly TextBox _url = new() { Dock = DockStyle.Fill };
+    private readonly TextBox _code = new() { Dock = DockStyle.Fill };
     private readonly ComboBox _side = new() { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button _connect = new() { Text = "Connect", Width = 110 };
     private readonly Label _status = new() { AutoSize = true, Text = "Disconnected" };
@@ -15,6 +15,8 @@ internal sealed class MainForm : Form
     private RelayClient? _relay;
     private bool _remoteMode, _controlled;
     private int _remoteWidth, _remoteHeight, _remoteX, _remoteY;
+    private bool _movePending;
+    private DateTime _nextMoveSend;
     private DateTime _edgeGuard;
     private readonly HashSet<(uint scan, bool extended)> _heldKeys = [];
     private readonly HashSet<int> _heldButtons = [];
@@ -180,6 +182,11 @@ internal sealed class MainForm : Form
 
     private void CheckEdge()
     {
+        if (_remoteMode)
+        {
+            if (_movePending && DateTime.UtcNow >= _nextMoveSend) FlushMove();
+            return;
+        }
         if (_remoteMode || _controlled || _relay?.PeerPresent != true || _remoteWidth < 100 || DateTime.UtcNow < _edgeGuard) return;
         var bounds = Screen.PrimaryScreen!.Bounds;
         var point = NativeInput.Cursor;
@@ -204,6 +211,14 @@ internal sealed class MainForm : Form
         }
         _remoteX = Math.Clamp(next, 1, _remoteWidth - 2);
         _remoteY = Math.Clamp(_remoteY + dy, 0, _remoteHeight - 1);
+        _movePending = true;
+    }
+
+    private void FlushMove()
+    {
+        if (!_movePending || !_remoteMode) return;
+        _movePending = false;
+        _nextMoveSend = DateTime.UtcNow.AddMilliseconds(12);
         _relay?.Send(new { type = "move", x = _remoteX, y = _remoteY });
     }
 
@@ -212,6 +227,7 @@ internal sealed class MainForm : Form
         if (!_remoteMode) return false;
         if (message is 0x0201 or 0x0202 or 0x0204 or 0x0205 or 0x0207 or 0x0208 or 0x020A or 0x020E or 0x020B or 0x020C)
         {
+            FlushMove();
             var wheel = unchecked((short)(data.MouseData >> 16));
             var extra = message is 0x020B or 0x020C ? (int)((data.MouseData >> 16) << 16) : wheel;
             _relay?.Send(new { type = "mouse", action = message, data = extra });
@@ -237,6 +253,7 @@ internal sealed class MainForm : Form
     {
         if (!_remoteMode) return;
         _remoteMode = false;
+        _movePending = false;
         _relay?.Send(new { type = "leave" });
         var bounds = Screen.PrimaryScreen!.Bounds;
         var x = _settings.NeighborRight ? bounds.Right - 25 : bounds.Left + 25;
