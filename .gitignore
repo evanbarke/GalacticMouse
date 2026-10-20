@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+relay/node_modules/
+*.user
+*.log
+dist/
+.DS_Store
