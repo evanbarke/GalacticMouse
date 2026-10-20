@@ -14,6 +14,8 @@ This is an early working prototype. It has no clipboard or screen streaming. It 
 
 Only the primary display of each PC is mapped in this version. Close the agent or click Disconnect to restore local input. Keyboard and mouse events are encrypted end to end with AES-256-GCM using the pairing code. The relay sees a room identifier and message timing but cannot decrypt input. Pairing codes are saved under `%LOCALAPPDATA%\GalacticMouse` in the user's profile; protect the profile as you would other credentials.
 
+If the connection drops, the app now shows the relay's close reason and writes connection status to `%LOCALAPPDATA%\GalacticMouse\client.log`. The log does not include the pairing code or input events.
+
 ## Relay deployment
 
 `relay/compose.yml` binds the relay to the Mailcow bridge gateway at `172.22.1.1:4786`. `deploy/mailcow-nginx.conf` is the dedicated virtual host with a Let's Encrypt certificate for `galactamouse.samix-technology.com`. `deploy/mailcow-path.conf` also provides the backup route `wss://samix-technology.com/galacticmouse/ws` under the existing site certificate.

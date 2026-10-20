@@ -8,7 +8,7 @@ internal sealed class MainForm : Form
     private readonly TextBox _code = new() { Dock = DockStyle.Fill };
     private readonly ComboBox _side = new() { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly Button _connect = new() { Text = "Connect", Width = 110 };
-    private readonly Label _status = new() { AutoSize = true, Text = "Disconnected" };
+    private readonly Label _status = new() { Dock = DockStyle.Fill, Text = "Disconnected" };
     private readonly System.Windows.Forms.Timer _edgeTimer = new() { Interval = 10 };
     private readonly Settings _settings = Settings.Load();
     private NativeInput? _input;

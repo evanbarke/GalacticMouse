@@ -28,7 +28,8 @@ wss.on('connection', ws => {
   let roomId = null;
   let count = 0;
   let windowStart = Date.now();
-  ws.joinTimer = setTimeout(() => ws.close(1008, 'Join timeout'), 5000);
+  ws.joinTimer = setTimeout(() => { console.info('join timeout'); ws.close(1008, 'Join timeout'); }, 5000);
+  ws.on('error', err => console.warn(`socket error: ${err.message}`));
   ws.on('message', (bytes, isBinary) => {
     if (isBinary || bytes.length > MAX_FRAME) { ws.close(1009, 'Invalid frame'); return; }
     const now = Date.now();
@@ -41,9 +42,13 @@ wss.on('connection', ws => {
         ws.close(1008, 'Invalid room'); return;
       }
       const room = rooms.get(msg.room) ?? new Set();
-      if (room.size >= 2) { ws.close(1008, 'Room full'); return; }
+      if (room.size >= 2) {
+        console.info(`join rejected room-full room=${msg.room.slice(0, 12)}`);
+        ws.close(1008, 'Room full'); return;
+      }
       roomId = msg.room;
       room.add(ws); rooms.set(roomId, room);
+      console.info(`join room=${roomId.slice(0, 12)} peers=${room.size}`);
       clearTimeout(ws.joinTimer);
       tellPresence(room);
       return;
@@ -59,7 +64,8 @@ wss.on('connection', ws => {
       }
     }
   });
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
+    console.info(`close room=${roomId?.slice(0, 12) ?? 'none'} code=${code} reason=${reason.toString().slice(0, 80)}`);
     clearTimeout(ws.joinTimer);
     if (!roomId) return;
     const room = rooms.get(roomId);
