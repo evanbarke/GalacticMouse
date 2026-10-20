@@ -5,7 +5,7 @@ namespace GalacticMouse;
 
 internal sealed class Settings
 {
-    public string RelayUrl { get; set; } = "wss://samix-technology.com/galacticmouse/ws";
+    public string RelayUrl { get; set; } = "wss://galactamouse.samix-technology.com/ws";
     public string PairingCode { get; set; } = "";
     public bool NeighborRight { get; set; } = true;
 
